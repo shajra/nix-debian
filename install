@@ -1,0 +1,188 @@
+#!/bin/sh -e
+
+
+CERTS="/etc/ssl/certs/ca-certificates.crt"
+
+export CURL_CA_BUNDLE="$CERTS"
+export SSL_CERT_FILE="$CERTS"
+
+
+main()
+{
+    if fresh_installation
+    then
+        prep_single_user_install
+        install_single_user
+    fi
+    install_multi_user
+    update_channel
+    upgrade_default_profile
+    install_chroot_profile
+    upgrade_chroot_profile
+    activate_chroot_building
+}
+
+
+fresh_installation()
+{
+    test ! -e /nix
+}
+
+
+prep_single_user_install()
+{
+    sudo mkdir /nix
+    sudo chown "$(whoami):$(whoami)" /nix
+}
+
+
+install_single_user()
+{
+    curl https://nixos.org/nix/install | env --unset=NIX_REMOTE bash
+}
+
+
+install_multi_user()
+{
+    create_build_group
+    create_build_users
+    set_multi_user_perms
+    install_nix_conf
+    install_systemd_conf
+    set_up_user_config
+    export NIX_REMOTE=daemon
+}
+
+
+update_channel()
+{
+    /nix/var/nix/profiles/default/bin/nix-channel --update
+}
+
+
+upgrade_default_profile()
+{
+    sudo \
+        CURL_CA_BUNDLE="$CERTS" \
+        SSL_CERT_FILE="$CERTS" \
+        /nix/var/nix/profiles/default/bin/nix-env \
+        --file ~/.nix-defexpr \
+        --profile /nix/var/nix/profiles/default \
+        --upgrade \
+        --always \
+        '*'
+}
+
+
+install_chroot_profile()
+{
+    sudo \
+        CURL_CA_BUNDLE="$CERTS" \
+        SSL_CERT_FILE="$CERTS" \
+        /nix/var/nix/profiles/default/bin/nix-env \
+        --file ~/.nix-defexpr \
+        --profile /nix/var/nix/profiles/chroot \
+        --install bash
+}
+
+
+upgrade_chroot_profile()
+{
+    sudo \
+        CURL_CA_BUNDLE="$CERTS" \
+        SSL_CERT_FILE="$CERTS" \
+        /nix/var/nix/profiles/default/bin/nix-env \
+        --file ~/.nix-defexpr \
+        --profile /nix/var/nix/profiles/chroot \
+        --upgrade \
+        --always \
+        '*'
+}
+
+
+activate_chroot_building()
+{
+sudo tee --append /etc/nix/nix.conf <<EOF > /dev/null
+build-use-chroot = true
+build-chroot-dirs = /dev /dev/pts /bin=/nix/var/nix/profiles/chroot/bin $(bash_nix_deps)
+EOF
+}
+
+
+create_build_group()
+{
+    sudo addgroup --quiet --system nixbld
+}
+
+
+create_build_users()
+{
+    for i in $(seq 1 10)
+    do create_build_user "$i"
+    done
+}
+
+
+set_multi_user_perms()
+{
+    sudo chown --recursive root:root /nix
+    sudo chown --recursive root:nixbld /nix/store
+    sudo chmod 1775 /nix/store
+    sudo rm --recursive --force /nix/var/nix/gcroots/per-user
+    sudo mkdir --parents --mode=1777 /nix/var/nix/gcroots/per-user
+    sudo rm --recursive --force /nix/var/nix/profiles/per-user
+    sudo mkdir --parents --mode=1777 /nix/var/nix/profiles/per-user
+}
+
+
+install_nix_conf() {
+    sudo mkdir --parents /etc/nix
+sudo tee /etc/nix/nix.conf <<EOF > /dev/null
+build-users-group = nixbld
+build-max-jobs = 4
+EOF
+}
+
+
+install_systemd_conf()
+{
+    sudo ln --symbolic --force \
+        /nix/var/nix/profiles/default/lib/systemd/system/nix-daemon.service \
+        /etc/systemd/system
+    sudo ln --symbolic --force \
+        /nix/var/nix/profiles/default/lib/systemd/system/nix-daemon.socket \
+        /etc/systemd/system/sockets.target.wants
+    sudo systemctl --system daemon-reload
+    sudo service nix-daemon stop
+    sudo service nix-daemon start
+}
+
+
+set_up_user_config()
+{
+    local profile_dir="/nix/var/nix/profiles/per-user/$(whoami)/default"
+    ln --symbolic --force --no-target-directory "$profile_dir" ~/.nix-profile
+}
+
+
+create_build_user()
+{
+    local user_number="$1"
+    local username="nixbld$1"
+    sudo adduser --quiet --system --group --disabled-login \
+        --home /dev/null  --no-create-home \
+        --gecos "Nix build user $user_number" \
+        "$username"
+    sudo adduser "$username" nixbld
+}
+
+
+bash_nix_deps()
+{
+    /nix/var/nix/profiles/default/bin/nix-store --query --requisites \
+            $(readlink -f /nix/var/nix/profiles/chroot/bin/bash) \
+        | tr "\n" " "
+}
+
+
+main

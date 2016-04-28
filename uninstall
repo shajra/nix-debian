@@ -1,0 +1,60 @@
+#!/bin/sh -e
+
+
+main()
+{
+    cleanup_system
+    cleanup_root_account
+    cleanup_user_account
+}
+
+
+cleanup_system()
+{
+    shutdown_service
+    purge_nix_files
+    remove_nix_users_and_group
+}
+
+
+cleanup_root_account()
+{
+    sudo sh -c 'rm --recursive --force /root/.nix-*'
+}
+
+
+cleanup_user_account()
+{
+    rm --recursive --force ~/.nix-*
+}
+
+
+shutdown_service()
+{
+    sudo rm --force /etc/systemd/system/nix-daemon.service
+    sudo rm --force /etc/systemd/system/sockets.target.wants/nix-daemon.socket
+    sudo systemctl --system daemon-reload
+}
+
+
+purge_nix_files()
+{
+    sudo rm --recursive --force /etc/nix
+    sudo rm --recursive --force /nix
+}
+
+
+remove_nix_users_and_group()
+{
+    if getent group nixbld > /dev/null
+    then
+        for user in $(members nixbld)
+        do
+            sudo deluser --quiet --system "$user"
+        done
+        sudo delgroup --quiet --system --only-if-empty nixbld
+    fi
+}
+
+
+main
