@@ -103,8 +103,8 @@ upgrade_chroot_profile()
 activate_chroot_building()
 {
 sudo tee --append /etc/nix/nix.conf <<EOF > /dev/null
-build-use-chroot = true
-build-chroot-dirs = /dev /dev/pts /srv/nix /bin=/nix/var/nix/profiles/chroot/bin $(bash_nix_deps)
+build-use-sandbox = true
+build-extra-sandbox-paths = /srv/nix
 EOF
 }
 
@@ -156,6 +156,7 @@ install_systemd_conf()
         /etc/systemd/system/sockets.target.wants
     sudo mkdir -p /etc/systemd/system/nix-daemon.service.d
 sudo tee /etc/systemd/system/nix-daemon.service.d/overrides.conf <<EOF > /dev/null
+[Service]
 Environment="CURL_CA_BUNDLE=$ca_certs"
 Environment="SSL_CERT_FILE=$ca_certs"
 Environment="NIX_CURL_FLAGS=--netrc-file /srv/nix/netrc"
@@ -182,14 +183,6 @@ create_build_user()
         --gecos "Nix build user $user_number" \
         "$username"
     sudo adduser "$username" nixbld
-}
-
-
-bash_nix_deps()
-{
-    /nix/var/nix/profiles/default/bin/nix-store --query --requisites \
-            $(readlink -f /nix/var/nix/profiles/chroot/bin/bash) \
-        | tr "\n" " "
 }
 
 
