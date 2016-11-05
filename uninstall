@@ -40,6 +40,7 @@ shutdown_service()
 purge_nix_files()
 {
     sudo rm --recursive --force /etc/nix
+    sudo rm --recursive --force /etc/systemd/system/nix-daemon.service.d
     sudo rm --recursive --force /nix
 }
 
