@@ -1,0 +1,52 @@
+#!/bin/sh -e
+
+
+CERTS="/etc/ssl/certs/ca-certificates.crt"
+
+export CURL_CA_BUNDLE="$CERTS"
+export SSL_CERT_FILE="$CERTS"
+
+
+main()
+{
+    update_channel
+    upgrade_default_profile
+    upgrade_chroot_profile
+}
+
+
+update_channel()
+{
+    /nix/var/nix/profiles/default/bin/nix-channel --update
+}
+
+
+upgrade_default_profile()
+{
+    sudo \
+        CURL_CA_BUNDLE="$CERTS" \
+        SSL_CERT_FILE="$CERTS" \
+        /nix/var/nix/profiles/default/bin/nix-env \
+        --file ~/.nix-defexpr \
+        --profile /nix/var/nix/profiles/default \
+        --upgrade \
+        --always \
+        '*'
+}
+
+
+upgrade_chroot_profile()
+{
+    sudo \
+        CURL_CA_BUNDLE="$CERTS" \
+        SSL_CERT_FILE="$CERTS" \
+        /nix/var/nix/profiles/default/bin/nix-env \
+        --file ~/.nix-defexpr \
+        --profile /nix/var/nix/profiles/chroot \
+        --upgrade \
+        --always \
+        '*'
+}
+
+
+main
