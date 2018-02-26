@@ -17,8 +17,6 @@ main()
     install_multi_user
     update_channel
     upgrade_default_profile
-    install_chroot_profile
-    upgrade_chroot_profile
     activate_chroot_building
 }
 
@@ -68,32 +66,6 @@ upgrade_default_profile()
         /nix/var/nix/profiles/default/bin/nix-env \
         --file ~/.nix-defexpr \
         --profile /nix/var/nix/profiles/default \
-        --upgrade \
-        --always \
-        '*'
-}
-
-
-install_chroot_profile()
-{
-    sudo \
-        CURL_CA_BUNDLE="$CERTS" \
-        SSL_CERT_FILE="$CERTS" \
-        /nix/var/nix/profiles/default/bin/nix-env \
-        --file ~/.nix-defexpr \
-        --profile /nix/var/nix/profiles/chroot \
-        --install bash
-}
-
-
-upgrade_chroot_profile()
-{
-    sudo \
-        CURL_CA_BUNDLE="$CERTS" \
-        SSL_CERT_FILE="$CERTS" \
-        /nix/var/nix/profiles/default/bin/nix-env \
-        --file ~/.nix-defexpr \
-        --profile /nix/var/nix/profiles/chroot \
         --upgrade \
         --always \
         '*'
